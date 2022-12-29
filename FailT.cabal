@@ -1,0 +1,81 @@
+name:                FailT
+version:             0.1.0.0
+synopsis:            Short description
+description:         Please see the README on GitHub at <https://github.com/lehins/FailT#readme>
+homepage:            https://github.com/lehins/FailT
+license:             BSD3
+license-file:        LICENSE
+author:              Alexey Kuleshevich
+maintainer:          alexey@kuleshevi.ch
+copyright:           2022-2023 Alexey Kuleshevich
+category:            Algorithms
+build-type:          Simple
+extra-source-files:  README.md
+                   , CHANGELOG.md
+cabal-version:       1.18
+tested-with:         GHC == 7.10.3
+                   , GHC == 8.0.2
+                   , GHC == 8.2.2
+                   , GHC == 8.4.3
+                   , GHC == 8.4.4
+                   , GHC == 8.6.3
+                   , GHC == 8.6.4
+                   , GHC == 8.6.5
+                   , GHC == 8.8.2
+                   , GHC == 8.10.7
+                   , GHC == 9.0.2
+                   , GHC == 9.2.5
+                   , GHC == 9.4.4
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Control.Monad.Trans.Fail
+
+  other-modules:
+  build-depends:       base >= 4.8 && < 5
+                     , mtl
+
+  if !impl(ghc >= 8.0)
+    build-depends:     fail
+                     , call-stack
+
+
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+
+-- test-suite doctests
+--   type:             exitcode-stdio-1.0
+--   hs-source-dirs:   tests
+--   main-is:          doctests.hs
+--   build-depends: base
+--                , doctest >=0.15
+--                , FailT
+--                , template-haskell
+--   default-language:    Haskell2010
+--   ghc-options:        -Wall
+--                       -fno-warn-orphans
+--                       -threaded
+
+-- test-suite tests
+--   type:               exitcode-stdio-1.0
+--   hs-source-dirs:     tests
+--   main-is:            Main.hs
+--   other-modules:      Common
+--                     , LibSpec
+--                     , Spec
+--   build-tool-depends: hspec-discover:hspec-discover
+--   build-depends:      base             >= 4.8 && < 5
+--                     , FailT
+--                     , hspec
+--                     , QuickCheck
+
+--   default-language:   Haskell2010
+--   ghc-options:        -Wall
+--                       -fno-warn-orphans
+--                       -threaded
+--                       -with-rtsopts=-N2
+
+source-repository head
+  type:     git
+  location: https://github.com/lehins/FailT
