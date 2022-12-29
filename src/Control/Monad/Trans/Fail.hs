@@ -2,6 +2,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module      : Control.Monad.Trans.Fail
@@ -20,15 +21,29 @@ module Control.Monad.Trans.Fail (
   runFailT,
   runFailLastT,
   runFailAggT,
+  hoistFailT,
+  mapFailT,
+  exceptFailT,
   throwFailT,
+
+  -- * Helpers
+  liftCatch,
+  liftListen,
+  liftPass,
 ) where
 
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Cont
+import Control.Monad.Except
 import qualified Control.Monad.Fail as Fail
-import Control.Monad.Trans
+import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Writer
 import Control.Monad.Zip
+import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (intersperse)
 import qualified Data.List.NonEmpty as NE
@@ -69,6 +84,29 @@ runFailAggT :: FailT m a -> m (Either [String] a)
 runFailAggT (FailT f) = f
 {-# INLINE runFailAggT #-}
 
+-- | Change the underlying monad with the hoisting function
+hoistFailT :: (forall a. m a -> n a) -> FailT m b -> FailT n b
+hoistFailT f = FailT . f . runFailAggT
+{-# INLINE hoistFailT #-}
+
+-- | Map a function over the underlying representation of the FailT monad.
+mapFailT :: (m (Either [String] a) -> n (Either [String] b)) -> FailT m a -> FailT n b
+mapFailT f = FailT . f . runFailAggT
+{-# INLINE mapFailT #-}
+
+exceptFailT :: (HasCallStack, Monad m) => FailT m a -> ExceptT FailException m a
+exceptFailT m =
+  ExceptT $
+    runFailAggT m >>= \case
+      Right x -> pure $ Right x
+      Left errMsgs ->
+        pure $
+          Left $
+            FailException
+              { failCallStack = ?callStack
+              , failMessages = errMsgs
+              }
+{-# INLINE exceptFailT #-}
 
 data FailException = FailException
   { failCallStack :: CallStack
@@ -91,17 +129,17 @@ toFailureNonEmpty xs =
     Nothing -> "No failure reason given" NE.:| []
     Just ne -> ne
 
-throwFailT :: (HasCallStack, MonadIO m) => FailT m a -> m a
+throwFailT :: (HasCallStack, MonadThrow m) => FailT m a -> m a
 throwFailT f = do
   runFailAggT f >>= \case
     Right x -> pure x
     Left errMsgs ->
-      liftIO $
-        throwIO $
-          FailException
-            { failCallStack = ?callStack
-            , failMessages = errMsgs
-            }
+      throwM $
+        FailException
+          { failCallStack = ?callStack
+          , failMessages = errMsgs
+          }
+{-# INLINEABLE throwFailT #-}
 
 instance Functor m => Functor (FailT m) where
   fmap f (FailT m) = FailT (fmap (fmap f) m)
@@ -204,3 +242,119 @@ instance Contravariant f => Contravariant (FailT f) where
   contramap f = FailT . contramap (fmap f) . runFailAggT
   {-# INLINE contramap #-}
 #endif
+
+instance Eq1 m => Eq1 (FailT m) where
+  liftEq eq (FailT x) (FailT y) = liftEq (liftEq eq) x y
+  {-# INLINE liftEq #-}
+
+instance Ord1 m => Ord1 (FailT m) where
+  liftCompare comp (FailT x) (FailT y) =
+    liftCompare (liftCompare comp) x y
+  {-# INLINE liftCompare #-}
+
+instance Read1 m => Read1 (FailT m) where
+  liftReadsPrec rp rl =
+    readsData $
+      readsUnaryWith (liftReadsPrec rp' rl') "FailT" FailT
+    where
+      rp' = liftReadsPrec rp rl
+      rl' = liftReadList rp rl
+
+instance Show1 m => Show1 (FailT m) where
+  liftShowsPrec sp sl d (FailT m) =
+    showsUnaryWith (liftShowsPrec sp' sl') "FailT" d m
+    where
+      sp' = liftShowsPrec sp sl
+      sl' = liftShowList sp sl
+
+instance (Eq1 m, Eq a) => Eq (FailT m a) where
+  (==) = eq1
+  {-# INLINE (==) #-}
+
+instance (Ord1 m, Ord a) => Ord (FailT m a) where
+  compare = compare1
+  {-# INLINE compare #-}
+
+instance (Read1 m, Read a) => Read (FailT m a) where
+  readsPrec = readsPrec1
+
+instance (Show1 m, Show a) => Show (FailT m a) where
+  showsPrec = showsPrec1
+
+instance MonadReader r m => MonadReader r (FailT m) where
+  ask = lift ask
+  {-# INLINE ask #-}
+  local = mapFailT . local
+  {-# INLINE local #-}
+  reader = lift . reader
+  {-# INLINE reader #-}
+
+instance MonadState s m => MonadState s (FailT m) where
+  get = lift get
+  {-# INLINE get #-}
+  put = lift . put
+  {-# INLINE put #-}
+  state = lift . state
+  {-# INLINE state #-}
+
+instance MonadError e m => MonadError e (FailT m) where
+  throwError = lift . throwError
+  {-# INLINE throwError #-}
+  catchError = liftCatch catchError
+  {-# INLINE catchError #-}
+
+instance MonadWriter w m => MonadWriter w (FailT m) where
+  writer = lift . writer
+  {-# INLINE writer #-}
+  tell = lift . tell
+  {-# INLINE tell #-}
+  listen = liftListen listen
+  {-# INLINE listen #-}
+  pass = liftPass pass
+  {-# INLINE pass #-}
+
+instance MonadCont m => MonadCont (FailT m) where
+  callCC = liftCallCC callCC
+  {-# INLINE callCC #-}
+
+-- | Lift a @callCC@ operation to the new monad.
+liftCallCC
+  :: (((Either [String] a -> m (Either [String] b)) -> m (Either [String] a)) -> m (Either [String] a))
+  -> ((a -> FailT m b) -> FailT m a)
+  -> FailT m a
+liftCallCC ccc f = FailT $ ccc $ \c ->
+  runFailAggT (f (\a -> FailT $ c (Right a)))
+{-# INLINE liftCallCC #-}
+
+-- | Lift a @`catchE`@ operation to the new monad.
+liftCatch
+  :: (m (Either [String] a) -> (e -> m (Either [String] a)) -> m (Either [String] a))
+  -> FailT m a
+  -> (e -> FailT m a)
+  -> FailT m a
+liftCatch f m h = FailT $ f (runFailAggT m) (runFailAggT . h)
+{-# INLINE liftCatch #-}
+
+-- | Lift a @`listen`@ operation to the new monad.
+liftListen
+  :: Monad m
+  => (m (Either [String] a) -> m (Either [String] a, w))
+  -> (FailT m) a
+  -> (FailT m) (a, w)
+liftListen l = mapFailT $ \m -> do
+  (a, w) <- l m
+  return $! fmap (\r -> (r, w)) a
+{-# INLINE liftListen #-}
+
+-- | Lift a @`pass`@ operation to the new monad.
+liftPass
+  :: Monad m
+  => (m (Either [String] a, w -> w) -> m (Either [String] a))
+  -> (FailT m) (a, w -> w)
+  -> (FailT m) a
+liftPass p = mapFailT $ \m -> p $ do
+  a <- m
+  return $! case a of
+    Left errs -> (Left errs, id)
+    Right (v, f) -> (Right v, f)
+{-# INLINE liftPass #-}
