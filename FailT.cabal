@@ -53,24 +53,25 @@ library
 --                       -fno-warn-orphans
 --                       -threaded
 
--- test-suite tests
---   type:               exitcode-stdio-1.0
---   hs-source-dirs:     tests
---   main-is:            Main.hs
---   other-modules:      Common
---                     , LibSpec
---                     , Spec
---   build-tool-depends: hspec-discover:hspec-discover
---   build-depends:      base             >= 4.8 && < 5
---                     , FailT
---                     , hspec
---                     , QuickCheck
+test-suite tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     tests
+  main-is:            Main.hs
+  other-modules:      Test.Control.Monad.Trans.FailSpec
+                    , Spec
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:      base             >= 4.8 && < 5
+                    , FailT
+                    , hspec
+                    , mtl
+                    , QuickCheck
+                    , quickcheck-classes
 
---   default-language:   Haskell2010
---   ghc-options:        -Wall
---                       -fno-warn-orphans
---                       -threaded
---                       -with-rtsopts=-N2
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+                      -fno-warn-orphans
+                      -threaded
+                      -with-rtsopts=-N2
 
 source-repository head
   type:     git

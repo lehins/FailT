@@ -1,7 +1,10 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
@@ -34,7 +37,6 @@ module Control.Monad.Trans.Fail (
 
 import Control.Applicative
 import Control.Exception
-import Control.Monad
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Cont
 import Control.Monad.Except
@@ -158,6 +160,8 @@ instance Monad m => Applicative (FailT m) where
             Left kerr -> pure $ Left kerr
             Right a -> pure $ Right (f a)
   {-# INLINE (<*>) #-}
+  FailT m *> FailT k = FailT $ m *> k
+  {-# INLINE (*>) #-}
 
 instance Monad m => Monad (FailT m) where
   FailT m >>= k =
@@ -184,27 +188,17 @@ instance Traversable f => Traversable (FailT f) where
   traverse f (FailT m) = FailT <$> traverse (either (pure . Left) (fmap Right . f)) m
   {-# INLINE traverse #-}
 
-plus :: Monad m => FailT m a -> FailT m a -> FailT m a
-plus (FailT m) (FailT k) = FailT $ do
-  m >>= \case
-    Left merr ->
-      k >>= \case
-        Left kerr -> pure $ Left $ merr ++ kerr
-        Right result -> pure $ Right $ result
-    Right x -> pure (Right x)
-{-# INLINEABLE plus #-}
-
 instance Monad m => Alternative (FailT m) where
   empty = FailT $ pure (Left [])
   {-# INLINE empty #-}
-  (<|>) = plus
-  {-# INLINE (<|>) #-}
-
-instance Monad m => MonadPlus (FailT m) where
-  mzero = empty
-  {-# INLINE mzero #-}
-  mplus = plus
-  {-# INLINE mplus #-}
+  FailT m <|> FailT k = FailT $ do
+    m >>= \case
+      Left merr ->
+        k >>= \case
+          Left kerr -> pure $ Left $ merr ++ kerr
+          Right result -> pure $ Right $ result
+      Right x -> pure (Right x)
+  {-# INLINEABLE (<|>) #-}
 
 instance (Monad m, Semigroup a) => Semigroup (FailT m a) where
   (<>) (FailT m) (FailT k) = FailT $ do
