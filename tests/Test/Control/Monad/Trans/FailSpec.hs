@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -18,16 +19,16 @@ laws :: Laws -> Spec
 laws Laws{lawsTypeclass, lawsProperties} =
   describe lawsTypeclass $ mapM_ (uncurry prop) lawsProperties
 
-instance (Applicative m, Arbitrary a) => Arbitrary (FailT m a) where
+instance (Applicative m, Arbitrary e, Arbitrary a) => Arbitrary (FailT e m a) where
   arbitrary = FailT . pure <$> arbitrary
 
 spec :: Spec
 spec = do
   describe "FailT" $ do
-    prop "runFail" $ \err -> runFail (fail err :: Fail ()) `shouldBe` Left err
+    prop "runFail" $ \err -> runFail (fail err :: Fail String ()) `shouldBe` Left err
     describe "Instance Laws" $ do
-      let px = Proxy :: Proxy (FailT Maybe (Sum Int))
-      let px1 = Proxy :: Proxy (FailT Maybe)
+      let px = Proxy :: Proxy (FailT String Maybe (Sum Int))
+      let px1 = Proxy :: Proxy (FailT String Maybe)
       laws $ eqLaws px
       laws $ ordLaws px
       laws $ showLaws px
@@ -44,13 +45,15 @@ spec = do
       laws $ traversableLaws px1
     describe "mtl" $ do
       prop "MonadReader" $ \msg (x :: Int) -> do
-        let t = do
+        let t :: FailT String (ReaderT Int IO) Int
+            t = do
               x' <- ask
               pure $ succ x'
         runReaderT (runFailT t) x `shouldReturn` Right (x + 1)
         runReaderT (runFailT (fail msg >> pure x)) x `shouldReturn` Left msg
       prop "MonadState" $ \msg (x :: Int) -> do
-        let t = do
+        let t :: FailT String (StateT Int IO) ()
+            t = do
               x' <- get
               liftIO (x' `shouldBe` x)
               put (x' + 1)
