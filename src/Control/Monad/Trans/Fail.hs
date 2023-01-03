@@ -23,6 +23,7 @@ module Control.Monad.Trans.Fail (
   errorFail,
   errorFailWithoutStackTrace,
   FailT (..),
+  FailException (..),
   failT,
   runFailT,
   runFailLastT,

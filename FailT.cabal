@@ -30,11 +30,14 @@ tested-with:         GHC == 7.10.3
 library
   hs-source-dirs:      src
   exposed-modules:     Control.Monad.Trans.Fail
+                     , Control.Monad.Trans.Fail.String
+                     , Control.Monad.Trans.Fail.Text
 
   other-modules:
   build-depends:       base >= 4.8 && < 5
                      , exceptions
                      , mtl
+                     , text
 
   default-language:    Haskell2010
   ghc-options:         -Wall
