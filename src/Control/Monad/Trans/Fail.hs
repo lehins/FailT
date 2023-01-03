@@ -21,7 +21,9 @@ module Control.Monad.Trans.Fail (
   runFailLast,
   runFailAgg,
   errorFail,
+  errorFailWithoutStackTrace,
   FailT (..),
+  failT,
   runFailT,
   runFailLastT,
   runFailAggT,
@@ -42,7 +44,6 @@ import Control.Exception
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Cont
 import Control.Monad.Except
-import qualified Control.Monad.Fail as Fail
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -74,13 +75,29 @@ runFailAgg :: Fail e a -> Either [e] a
 runFailAgg = runIdentity . runFailAggT
 {-# INLINE runFailAgg #-}
 
-errorFail :: HasCallStack => Fail String a -> a
-errorFail = either error id . runFail
+-- | Throw an error if there was a failure, otherwise return the result of monadic
+-- computation. Use `throwFailT` in case you'd like to handle an actual exception.
+errorFail :: (Show e, HasCallStack) => Fail e a -> a
+errorFail = either (error . toFailureDelimited . fmap show) id . runFailAgg
 
+-- | Same as `errorFail`, but without the stack trace:
+--
+-- >>> errorFailWithoutStackTrace (fail "This didn't work" :: Fail String ())
+-- *** Exception: "This didn't work"
+-- >>> errorFailWithoutStackTrace (fail "This didn't work" <|> pure "That Worked" :: Fail String String)
+-- "That Worked"
+errorFailWithoutStackTrace :: Show e => Fail e a -> a
+errorFailWithoutStackTrace =
+  either (errorWithoutStackTrace . toFailureDelimited . fmap show) id . runFailAgg
+
+-- | Fail monad transformer that plays well with `MonadFail`
 newtype FailT e m a = FailT (m (Either [e] a))
 
+failT :: Applicative m => e -> FailT e m a
+failT = FailT . pure . Left . pure
+
 runFailT :: (IsString e, Semigroup e, Functor m) => FailT e m a -> m (Either e a)
-runFailT (FailT f) = either (Left . sconcat . NE.intersperse ", " . toFailureNonEmpty) Right <$> f
+runFailT (FailT f) = either (Left . toFailureDelimited) Right <$> f
 {-# INLINE runFailT #-}
 
 runFailLastT :: (IsString e, Functor m) => FailT e m a -> m (Either e a)
@@ -141,6 +158,9 @@ toFailureNonEmpty xs =
     Nothing -> "No failure reason given" NE.:| []
     Just ne -> ne
 
+toFailureDelimited :: (IsString e, Semigroup e) => [e] -> e
+toFailureDelimited = sconcat . NE.intersperse ", " . toFailureNonEmpty
+
 throwFailT :: (HasCallStack, Typeable e, Show e, MonadThrow m) => FailT e m a -> m a
 throwFailT f = do
   runFailAggT f >>= \case
@@ -186,7 +206,7 @@ instance (IsString e, Monad m) => Monad (FailT e m) where
   {-# INLINE fail #-}
 #endif
 
-instance (IsString e, Monad m) => Fail.MonadFail (FailT e m) where
+instance (IsString e, Monad m) => MonadFail (FailT e m) where
   fail = FailT . return . Left . pure . fromString
   {-# INLINE fail #-}
 
