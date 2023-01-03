@@ -56,9 +56,10 @@ errorFail = F.errorFail
 
 -- | Same as `errorFail`, but without the stack trace:
 --
--- >>> errorFailWithoutStackTrace (fail "This didn't work" :: Fail String ())
+-- >>> errorFailWithoutStackTrace (fail "This didn't work" :: Fail ())
 -- *** Exception: "This didn't work"
--- >>> errorFailWithoutStackTrace (fail "This didn't work" <|> pure "That Worked" :: Fail String String)
+-- >>> import Control.Applicative
+-- >>> errorFailWithoutStackTrace (fail "This didn't work" <|> pure "That Worked" :: Fail String)
 -- "That Worked"
 errorFailWithoutStackTrace :: Fail a -> a
 errorFailWithoutStackTrace = F.errorFailWithoutStackTrace
