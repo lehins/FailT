@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -23,6 +24,7 @@ module Control.Monad.Trans.Fail (
   runFailAgg,
   errorFail,
   errorFailWithoutStackTrace,
+
   -- * FailT
   FailT (..),
   FailException (..),
@@ -149,13 +151,11 @@ runFailT (FailT f) = either (Left . toFailureDelimited) Right <$> f
 {-# INLINE runFailT #-}
 
 -- | Similar to `runFailLast`, except unerlying monad is not restricted to `Identity`.
---
 runFailLastT :: (IsString e, Functor m) => FailT e m a -> m (Either e a)
 runFailLastT (FailT f) = either (Left . NE.last . toFailureNonEmpty) Right <$> f
 {-# INLINE runFailLastT #-}
 
 -- | Similar to `runFailAgg`, except unerlying monad is not restricted to `Identity`.
---
 runFailAggT :: FailT e m a -> m (Either [e] a)
 runFailAggT (FailT f) = f
 {-# INLINE runFailAggT #-}
@@ -185,7 +185,7 @@ mapErrorsFailT f (FailT m) = FailT (fmap (first f) m)
 {-# INLINE mapErrorsFailT #-}
 
 -- | Convert a `FailT` computation into an `ExceptT`.
-exceptFailT :: (HasCallStack, Show e, Monad m) => FailT e m a -> ExceptT (FailException e) m a
+exceptFailT :: (HasCallStack, Typeable e, Show e, Monad m) => FailT e m a -> ExceptT FailException m a
 exceptFailT m =
   ExceptT $
     runFailAggT m >>= \case
@@ -200,12 +200,15 @@ exceptFailT m =
 {-# INLINE exceptFailT #-}
 
 -- | An exception that is produced by the `FailT` monad transformer.
-data FailException e = FailException
-  { failCallStack :: CallStack
-  , failMessages :: [e]
-  }
+data FailException where
+  FailException
+    :: (Typeable e, Show e)
+    => { failCallStack :: CallStack
+       , failMessages :: [e]
+       }
+    -> FailException
 
-instance Show e => Show (FailException e) where
+instance Show FailException where
   show FailException{failCallStack, failMessages} =
     mconcat $
       intersperse "\n" $
@@ -213,7 +216,7 @@ instance Show e => Show (FailException e) where
           : NE.toList (toFailureNonEmpty (show <$> failMessages))
           ++ [prettyCallStack failCallStack]
 
-instance (Typeable e, Show e) => Exception (FailException e)
+instance Exception FailException
 
 toFailureNonEmpty :: IsString e => [e] -> NE.NonEmpty e
 toFailureNonEmpty xs =

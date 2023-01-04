@@ -16,7 +16,7 @@ module Control.Monad.Trans.Fail.Text (
   errorFail,
   errorFailWithoutStackTrace,
   FailT,
-  FailException,
+  F.FailException (..),
   failT,
   runFailT,
   runFailLastT,
@@ -77,9 +77,6 @@ errorFailWithoutStackTrace = F.errorFailWithoutStackTrace
 -- Fail monad transformer that plays well with `MonadFail`
 type FailT = F.FailT Text
 
--- | Version of `F.FailException` restricted to `Text`
-type FailException = F.FailException Text
-
 -- | Version of `F.failT` restricted to `Text`
 --
 -- Monomorphic synonym for `fail`
@@ -135,7 +132,7 @@ mapErrorsFailT = F.mapErrorsFailT
 {-# INLINE mapErrorsFailT #-}
 
 -- | Version of `F.exceptFailT` restricted to `Text`
-exceptFailT :: (HasCallStack, Monad m) => FailT m a -> ExceptT FailException m a
+exceptFailT :: (HasCallStack, Monad m) => FailT m a -> ExceptT F.FailException m a
 exceptFailT = F.exceptFailT
 {-# INLINE exceptFailT #-}
 
