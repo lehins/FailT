@@ -16,12 +16,14 @@
 -- Stability   : experimental
 -- Portability : non-portable
 module Control.Monad.Trans.Fail (
+  -- * Fail
   Fail,
   runFail,
   runFailLast,
   runFailAgg,
   errorFail,
   errorFailWithoutStackTrace,
+  -- * FailT
   FailT (..),
   FailException (..),
   failT,
@@ -31,6 +33,7 @@ module Control.Monad.Trans.Fail (
   hoistFailT,
   mapFailT,
   mapErrorFailT,
+  mapErrorsFailT,
   exceptFailT,
   throwFailT,
 
@@ -62,12 +65,39 @@ import GHC.Stack
 import Data.Functor.Contravariant
 #endif
 
+-- | `FailT` transformer with `Identity` as the base monad.
 type Fail e = FailT e Identity
 
+-- | Unwrap the pure `Fail` monad and reveal the underlying result of monadic
+-- computation.
+--
+-- >>> runFail (fail "Something went wrong") :: Either String ()
+-- Left "Something went wrong"
+-- >>> runFail (failT "Something went wrong" >> pure ())
+-- Left "Something went wrong"
+-- >>> import Control.Applicative
+-- >>> runFail (failT "Something could have gone wrong" <|> pure ())
+-- Right ()
+--
+-- All errors accrued during the monadic computation will be combined using the
+-- `Semigroup` instance and delimited by a comma:
+--
+-- >>> runFail (fail "One thing went wrong" <|> fail "Another thing went wrong") :: Either String ()
+-- Left "One thing went wrong, Another thing went wrong"
+--
+-- Failing with one of instances functions `mempty` or `empty` will yield a no-reason
+-- error report:
+--
+-- >>> runFail mempty :: Either String ()
+-- Left "No failure reason given"
 runFail :: (IsString e, Semigroup e) => Fail e a -> Either e a
 runFail = runIdentity . runFailT
 {-# INLINE runFail #-}
 
+-- | This is a variant of `runFailAgg` where only the error reported for the very last
+-- failed computation will be produced and others discarded. This is useful when it is not
+-- relevant to reatin information about all the attempts and only the last one matters,
+-- eg. parsing with backtracking.
 runFailLast :: IsString e => Fail e a -> Either e a
 runFailLast = runIdentity . runFailLastT
 {-# INLINE runFailLast #-}
@@ -76,8 +106,15 @@ runFailAgg :: Fail e a -> Either [e] a
 runFailAgg = runIdentity . runFailAggT
 {-# INLINE runFailAgg #-}
 
--- | Throw an error if there was a failure, otherwise return the result of monadic
--- computation. Use `throwFailT` in case you'd like to handle an actual exception.
+-- | Throw an error if there was a failure, otherwise return the result of
+-- computation. Use `throwFailT` in case you'd like to handle an actual exception in some
+-- other underlying monad.
+--
+-- >>> errorFail (fail "This didn't work" :: Fail String ())
+-- *** Exception: "This didn't work"
+-- ...
+-- >>> errorFail (fail "This didn't work" <|> pure "That Worked" :: Fail String String)
+-- "That Worked"
 errorFail :: (Show e, HasCallStack) => Fail e a -> a
 errorFail = either (error . toFailureDelimited . fmap show) id . runFailAgg
 
@@ -91,20 +128,34 @@ errorFailWithoutStackTrace :: Show e => Fail e a -> a
 errorFailWithoutStackTrace =
   either (errorWithoutStackTrace . toFailureDelimited . fmap show) id . runFailAgg
 
--- | Fail monad transformer that plays well with `MonadFail`
+-- | Fail monad transformer that plays well with `MonadFail` type class.
 newtype FailT e m a = FailT (m (Either [e] a))
 
+-- | Similar to `fail`, but it is not restricted to `String`.
 failT :: Applicative m => e -> FailT e m a
 failT = FailT . pure . Left . pure
 
+-- | Similar to `runFail`, except unerlying monad is not restricted to `Identity`.
+--
+-- Unwrap the `FailT` monad transformer and produce an action that can be executed in
+-- the underlying monad and, which will produce either a comma delimited error message
+-- upon a failure or the result otherwise.
+--
+-- >>> runFailT (failT "Could have failed" <|> liftIO (putStrLn "Nothing went wrong"))
+-- Nothing went wrong
+-- Right ()
 runFailT :: (IsString e, Semigroup e, Functor m) => FailT e m a -> m (Either e a)
 runFailT (FailT f) = either (Left . toFailureDelimited) Right <$> f
 {-# INLINE runFailT #-}
 
+-- | Similar to `runFailLast`, except unerlying monad is not restricted to `Identity`.
+--
 runFailLastT :: (IsString e, Functor m) => FailT e m a -> m (Either e a)
-runFailLastT (FailT f) = either (Left . NE.head . toFailureNonEmpty) Right <$> f
+runFailLastT (FailT f) = either (Left . NE.last . toFailureNonEmpty) Right <$> f
 {-# INLINE runFailLastT #-}
 
+-- | Similar to `runFailAgg`, except unerlying monad is not restricted to `Identity`.
+--
 runFailAggT :: FailT e m a -> m (Either [e] a)
 runFailAggT (FailT f) = f
 {-# INLINE runFailAggT #-}
@@ -121,9 +172,19 @@ mapFailT f = FailT . f . runFailAggT
 
 -- | Map a function over the error type in the `FailT` monad.
 mapErrorFailT :: Functor m => (e -> e') -> FailT e m a -> FailT e' m a
-mapErrorFailT f (FailT m) = FailT (fmap (first (map f)) m)
+mapErrorFailT f = mapErrorsFailT (map f)
 {-# INLINE mapErrorFailT #-}
 
+-- | Map a function over the aggregation of errors in the `FailT` monad. Could be used for
+-- example for clearing our all of the aggregated error messages:
+--
+-- >>> runFail (mapErrorsFailT (const []) $ failT "Something went wrong") :: Either String ()
+-- Left "No failure reason given"
+mapErrorsFailT :: Functor m => ([e] -> [e']) -> FailT e m a -> FailT e' m a
+mapErrorsFailT f (FailT m) = FailT (fmap (first f) m)
+{-# INLINE mapErrorsFailT #-}
+
+-- | Convert a `FailT` computation into an `ExceptT`.
 exceptFailT :: (HasCallStack, Show e, Monad m) => FailT e m a -> ExceptT (FailException e) m a
 exceptFailT m =
   ExceptT $
@@ -138,6 +199,7 @@ exceptFailT m =
               }
 {-# INLINE exceptFailT #-}
 
+-- | An exception that is produced by the `FailT` monad transformer.
 data FailException e = FailException
   { failCallStack :: CallStack
   , failMessages :: [e]
@@ -162,6 +224,14 @@ toFailureNonEmpty xs =
 toFailureDelimited :: (IsString e, Semigroup e) => [e] -> e
 toFailureDelimited = sconcat . NE.intersperse ", " . toFailureNonEmpty
 
+-- | Use the `MonadThrow` instance to raise a `FailException` in the underlying monad.
+--
+-- >>> throwFailT (failT "One thing went wrong")
+-- *** Exception: FailException
+-- "One thing went wrong"
+-- ...
+-- >>> throwFailT (failT "One thing went wrong") :: Maybe ()
+-- Nothing
 throwFailT :: (HasCallStack, Typeable e, Show e, MonadThrow m) => FailT e m a -> m a
 throwFailT f = do
   runFailAggT f >>= \case
