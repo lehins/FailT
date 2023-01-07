@@ -1,0 +1,183 @@
+name: FailT-CI
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ master ]
+
+defaults: { run: { shell: bash } }
+
+
+
+jobs:
+  test-with-stack:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    name: Test with Stack
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        resolver: [lts-12, lts-14, lts-16, lts-18, lts-19, lts-20, nightly]
+        include:
+          - resolver: lts-12
+            ghc: 8.4.4
+          - resolver: lts-14
+            ghc: 8.6.5
+          - resolver: lts-16
+            ghc: 8.8.4
+          - resolver: lts-18
+            ghc: 8.10.7
+          - resolver: lts-19
+            ghc: 9.0.2
+          - resolver: lts-20
+            ghc: 9.2.5
+            # stack-yaml: stack-coveralls.yaml
+          - resolver: nightly
+            # ghc: 9.4.3
+
+    env:
+      STACK_YAML: stack.yaml
+      STACK_ARGS: '--resolver ${{ matrix.resolver }} --system-ghc'
+      cache-version: v1 # bump up this version to invalidate currently stored cache
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: haskell/actions/setup@v2
+      id: setup-haskell-cabal
+      name: Setup Haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        enable-stack: true
+        stack-version: 'latest'
+
+    - name: Cache
+      id: cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.stack-root }}
+          .stack-work
+        key: ${{ runner.os }}-${{ matrix.resolver }}-${{ env.cache-version }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.resolver }}-${{ env.cache-version }}
+    - name: Windows Cache
+      id: cache-windows
+      uses: actions/cache@v3
+      if: matrix.os == 'windows-latest'
+      with:
+        path: |
+          C:\\Users\\RUNNER~1\\AppData\\Roaming\\stack
+          C:\\Users\\RUNNER~1\\AppData\\Local\\Programs\\stack
+        key: ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
+    - name: Build
+      env:
+        COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      run: |
+        set -ex
+        [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
+        curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
+        # Windows is confused about stack's default user directory
+        runhaskell -- git-modtime.hs -f .stack-work/tree-contents.txt
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-14" ] && [ -n "${COVERALLS_TOKEN}" ]; then
+          stack $STACK_ARGS build --coverage --test --no-run-tests --haddock --no-haddock-deps
+        else
+          stack $STACK_ARGS build --test --no-run-tests --haddock --no-haddock-deps
+        fi
+    - name: Run tests
+      env:
+        COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      run: |
+        set -ex
+        [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-20" ] && [ -n "${COVERALLS_TOKEN}" ]; then
+          stack $STACK_ARGS test :tests --coverage --haddock --no-haddock-deps
+          stack $STACK_ARGS hpc report --all
+          curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.6.1/shc-linux-x64-9.2.5.tar.bz2 | tar xj shc
+          ./shc --repo-token="$COVERALLS_TOKEN" --partial-coverage --fetch-coverage combined custom
+        else
+          stack $STACK_ARGS test :tests
+        fi
+    - name: Run doctests
+      run: |
+        set -ex
+        [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
+        stack $STACK_ARGS test :doctests
+
+  test-with-cabal:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    name: Test with Cabal
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, ghc: "8.0.2" }
+          - { os: ubuntu-latest, ghc: "8.2.2" }
+          - { os: ubuntu-latest, ghc: "8.4.4" }
+          - { os: ubuntu-latest, ghc: "8.6.5" }
+          - { os: ubuntu-latest, ghc: "8.10.7" }
+          - { os: ubuntu-latest, ghc: "9.0.2" }
+          - { os: ubuntu-latest, ghc: "9.2.5" }
+          - { os: ubuntu-latest, ghc: "9.4.4" }
+          - { os: windows-latest, ghc: "8.0.2" }
+          # - { os: windows-latest, ghc: "8.2.2" } # Goes into infinite loop in doctests
+          - { os: windows-latest, ghc: "8.4.4" }
+          - { os: windows-latest, ghc: "8.6.5" }
+          - { os: windows-latest, ghc: "8.10.7" }
+          - { os: windows-latest, ghc: "9.0.2" }
+          - { os: windows-latest, ghc: "9.2.5" }
+          - { os: windows-latest, ghc: "9.4.4" }
+          - { os: macOS-latest, ghc: "8.0.2" }
+          - { os: macOS-latest, ghc: "8.2.2" }
+          - { os: macOS-latest, ghc: "8.4.4" }
+          - { os: macOS-latest, ghc: "8.6.5" }
+          - { os: macOS-latest, ghc: "8.10.7" }
+          - { os: macOS-latest, ghc: "9.0.2" }
+          - { os: macOS-latest, ghc: "9.2.5" }
+          - { os: macOS-latest, ghc: "9.4.4" }
+
+    env:
+      cache-version: v1 # bump up this version to invalidate currently stored cache
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: haskell/actions/setup@v2
+      id: setup-haskell-cabal
+      name: Setup Haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+
+    - name: Cache Cabal Store
+      id: cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+          dist-newstyle
+        key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
+        restore-keys: |
+          cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
+    - name: Build
+      run: |
+        set -ex
+        cabal configure --haddock-all \
+                        --enable-tests \
+                        --write-ghc-environment-files=always \
+                        --test-show-details=streaming
+        cabal build
+    - name: Run tests
+      run: |
+        set -ex
+        cabal test FailT:tests
+    - name: Run doctests
+      run: |
+        set -ex
+        cabal test FailT:doctests
+    - name: Check cabal file
+      run: |
+        set -ex
+        cabal -vnormal check

@@ -64,6 +64,7 @@ errorFail = F.errorFail
 --
 -- Same as `errorFail`, but without the stack trace:
 --
+-- >>> import Control.Monad.Trans.Fail.Text
 -- >>> errorFailWithoutStackTrace (fail "This didn't work" :: Fail ())
 -- *** Exception: "This didn't work"
 -- >>> import Control.Applicative

@@ -63,6 +63,7 @@ import Data.Semigroup
 import Data.Typeable
 import GHC.Exts
 import GHC.Stack
+import qualified Control.Monad.Fail as F
 #if MIN_VERSION_base(4,12,0)
 import Data.Functor.Contravariant
 #endif
@@ -130,7 +131,7 @@ errorFailWithoutStackTrace :: Show e => Fail e a -> a
 errorFailWithoutStackTrace =
   either (errorWithoutStackTrace . toFailureDelimited . fmap show) id . runFailAgg
 
--- | Fail monad transformer that plays well with `MonadFail` type class.
+-- | Fail monad transformer that plays well with `F.MonadFail` type class.
 newtype FailT e m a = FailT (m (Either [e] a))
 
 -- | Similar to `fail`, but it is not restricted to `String`.
@@ -276,11 +277,11 @@ instance (IsString e, Monad m) => Monad (FailT e m) where
   {-# INLINE (>>=) #-}
 
 #if !(MIN_VERSION_base(4,13,0))
-  fail = FailT . return . Left . fromString
+  fail = FailT . return . Left . pure . fromString
   {-# INLINE fail #-}
 #endif
 
-instance (IsString e, Monad m) => MonadFail (FailT e m) where
+instance (IsString e, Monad m) => F.MonadFail (FailT e m) where
   fail = FailT . return . Left . pure . fromString
   {-# INLINE fail #-}
 
