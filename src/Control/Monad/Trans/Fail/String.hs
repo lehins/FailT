@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 
 -- |
@@ -8,6 +7,11 @@
 -- Maintainer  : Alexey Kuleshevich <alexey@kuleshevi.ch>
 -- Stability   : experimental
 -- Portability : non-portable
+--
+-- This module contains a synonym for __@`F.FailT` e m a@__ transformer, where failure
+-- type __@e@__ is restricted to __@`String`@__. All functions in this module have the same
+-- names and are a drop-in replacement for "Control.Monad.Trans.Fail" module, except with
+-- monomorphic failure type.
 module Control.Monad.Trans.Fail.String (
   Fail,
   runFail,

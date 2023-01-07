@@ -50,6 +50,7 @@ import Control.Exception
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Cont
 import Control.Monad.Except
+import qualified Control.Monad.Fail as F
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -63,7 +64,6 @@ import Data.Semigroup
 import Data.Typeable
 import GHC.Exts
 import GHC.Stack
-import qualified Control.Monad.Fail as F
 #if MIN_VERSION_base(4,12,0)
 import Data.Functor.Contravariant
 #endif
@@ -99,12 +99,19 @@ runFail = runIdentity . runFailT
 
 -- | This is a variant of `runFailAgg` where only the error reported for the very last
 -- failed computation will be produced and others discarded. This is useful when it is not
--- relevant to reatin information about all the attempts and only the last one matters,
+-- relevant to retain information about all the attempts and only the last one matters,
 -- eg. parsing with backtracking.
 runFailLast :: IsString e => Fail e a -> Either e a
 runFailLast = runIdentity . runFailLastT
 {-# INLINE runFailLast #-}
 
+-- | Convert a `Fail` monad computation in an `Either`, where the `Left` will contain all
+-- failures in the same order they where received, or `Right` upon a successful computation.
+--
+-- >>> runFailAgg (fail "One bad thing" <|> fail "Another bad thing") :: Either [String] ()
+-- Left ["One bad thing","Another bad thing"]
+-- >>> runFailAgg (fail "A bad thing" <|> pure "A good thing") :: Either [String] String
+-- Right "A good thing"
 runFailAgg :: Fail e a -> Either [e] a
 runFailAgg = runIdentity . runFailAggT
 {-# INLINE runFailAgg #-}
@@ -115,6 +122,7 @@ runFailAgg = runIdentity . runFailAggT
 --
 -- >>> errorFail (fail "This didn't work" :: Fail String ())
 -- *** Exception: "This didn't work"
+-- CallStack (from HasCallStack):
 -- ...
 -- >>> errorFail (fail "This didn't work" <|> pure "That Worked" :: Fail String String)
 -- "That Worked"
@@ -138,7 +146,7 @@ newtype FailT e m a = FailT (m (Either [e] a))
 failT :: Applicative m => e -> FailT e m a
 failT = FailT . pure . Left . pure
 
--- | Similar to `runFail`, except unerlying monad is not restricted to `Identity`.
+-- | Similar to `runFail`, except underlying monad is not restricted to `Identity`.
 --
 -- Unwrap the `FailT` monad transformer and produce an action that can be executed in
 -- the underlying monad and, which will produce either a comma delimited error message
@@ -151,17 +159,17 @@ runFailT :: (IsString e, Semigroup e, Functor m) => FailT e m a -> m (Either e a
 runFailT (FailT f) = either (Left . toFailureDelimited) Right <$> f
 {-# INLINE runFailT #-}
 
--- | Similar to `runFailLast`, except unerlying monad is not restricted to `Identity`.
+-- | Similar to `runFailLast`, except underlying monad is not restricted to `Identity`.
 runFailLastT :: (IsString e, Functor m) => FailT e m a -> m (Either e a)
 runFailLastT (FailT f) = either (Left . NE.last . toFailureNonEmpty) Right <$> f
 {-# INLINE runFailLastT #-}
 
--- | Similar to `runFailAgg`, except unerlying monad is not restricted to `Identity`.
+-- | Similar to `runFailAgg`, except underlying monad is not restricted to `Identity`.
 runFailAggT :: FailT e m a -> m (Either [e] a)
 runFailAggT (FailT f) = f
 {-# INLINE runFailAggT #-}
 
--- | Change the underlying monad with the hoisting function
+-- | Change the underlying monad with the hoisting function.
 hoistFailT :: (forall a. m a -> n a) -> FailT e m b -> FailT e n b
 hoistFailT f = FailT . f . runFailAggT
 {-# INLINE hoistFailT #-}
@@ -186,6 +194,12 @@ mapErrorsFailT f (FailT m) = FailT (fmap (first f) m)
 {-# INLINE mapErrorsFailT #-}
 
 -- | Convert a `FailT` computation into an `ExceptT`.
+--
+-- >>> exceptFailT (fail "A bad thing" >> pure () :: Fail String ())
+-- ExceptT (Identity (Left FailException
+-- "A bad thing"
+-- CallStack (from HasCallStack):
+-- ...
 exceptFailT :: (HasCallStack, Typeable e, Show e, Monad m) => FailT e m a -> ExceptT FailException m a
 exceptFailT m =
   ExceptT $
@@ -195,8 +209,8 @@ exceptFailT m =
         pure $
           Left $
             FailException
-              { failCallStack = ?callStack
-              , failMessages = errMsgs
+              { failMessages = errMsgs
+              , failCallStack = ?callStack
               }
 {-# INLINE exceptFailT #-}
 
@@ -204,13 +218,13 @@ exceptFailT m =
 data FailException where
   FailException
     :: (Typeable e, Show e)
-    => { failCallStack :: CallStack
-       , failMessages :: [e]
+    => { failMessages :: [e]
+       , failCallStack :: CallStack
        }
     -> FailException
 
 instance Show FailException where
-  show FailException{failCallStack, failMessages} =
+  show FailException{failMessages, failCallStack} =
     mconcat $
       intersperse "\n" $
         "FailException"
@@ -243,8 +257,8 @@ throwFailT f = do
     Left errMsgs ->
       throwM $
         FailException
-          { failCallStack = ?callStack
-          , failMessages = errMsgs
+          { failMessages = errMsgs
+          , failCallStack = ?callStack
           }
 {-# INLINEABLE throwFailT #-}
 
@@ -268,6 +282,7 @@ instance Monad m => Applicative (FailT e m) where
   FailT m *> FailT k = FailT $ m *> k
   {-# INLINE (*>) #-}
 
+-- | Short-circuites on the first failing operation.
 instance (IsString e, Monad m) => Monad (FailT e m) where
   FailT m >>= k =
     FailT $
@@ -293,6 +308,7 @@ instance Traversable f => Traversable (FailT e f) where
   traverse f (FailT m) = FailT <$> traverse (either (pure . Left) (fmap Right . f)) m
   {-# INLINE traverse #-}
 
+-- | Short-circuits on the first successful operation, combines failures otherwise.
 instance Monad m => Alternative (FailT e m) where
   empty = FailT $ pure (Left [])
   {-# INLINE empty #-}
@@ -305,6 +321,8 @@ instance Monad m => Alternative (FailT e m) where
       Right x -> pure (Right x)
   {-# INLINEABLE (<|>) #-}
 
+-- | Executes all monadic actions and combines all successful results using a `Semigroup`
+-- instance. Combines together all failures as well, until a successful operation.
 instance (Monad m, Semigroup a) => Semigroup (FailT e m a) where
   (<>) (FailT m) (FailT k) = FailT $ do
     mres <- m

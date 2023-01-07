@@ -1,14 +1,25 @@
 name:                FailT
 version:             0.1.0.0
-synopsis:            Short description
-description:         Please see the README on GitHub at <https://github.com/lehins/FailT#readme>
+synopsis:            A 'FailT' monad transformer that plays well with 'MonadFail'
+description:
+    Fail gracefully when stuck in a 'MonadFail'
+    .
+    λ> runFailT (fail "Failure!?" >> pure "Success!!")
+    Left "Failure!?"
+    λ> runFailT (fail "Failure!?" <|> pure "Success!!")
+    Right "Success!!"
+    λ> runFailT (pure ["Success!!"] <> fail "Failure!?" <> pure ["At", "Last!"])
+    Right ["Success!!","At","Last!"]
+    .
+
+
 homepage:            https://github.com/lehins/FailT
 license:              BSD3
 license-file:         LICENSE
 author:               Alexey Kuleshevich
 maintainer:           alexey@kuleshevi.ch
 copyright:            2022-2023 Alexey Kuleshevich
-category:             Algorithms
+category:             Control, Failure
 build-type:           Simple
 extra-source-files:   README.md
                     , CHANGELOG.md
