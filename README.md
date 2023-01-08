@@ -4,6 +4,22 @@ This package solves a fairly simple, but very common problem of gracefully conve
 monadic computation that uses `MonadFail` into either a result or a string failure
 message(s).
 
+| Github Actions | Coveralls | Hackage | Nightly | LTS |
+|:--------------:|:---------:|:-------:|:-------:|:---:|
+| [![GA-CI][GA-B]][GA-L] | [![Coveralls][Co-B]][Co-L] | [![Hackage][Ha-B]][Ha-L] | [![Nightly][StN-B]][StN-L] | [![LTS][StLTS-B]][StLTS-L] |
+
+[GA-B]: https://github.com/lehins/FailT/workflows/FailT-CI/badge.svg
+[GA-L]: https://github.com/lehins/FailT/actions
+[Co-B]: https://coveralls.io/repos/github/lehins/FailT/badge.svg?branch=master
+[Co-L]: https://coveralls.io/github/lehins/FailT?branch=master
+
+[Ha-B]: https://img.shields.io/hackage/v/FailT.svg
+[Ha-L]: https://hackage.haskell.org/package/FailT
+[StN-B]: https://www.stackage.org/package/FailT/badge/nightly
+[StN-L]: https://www.stackage.org/nightly/package/FailT
+[StLTS-B]: https://www.stackage.org/package/FailT/badge/lts
+[StLTS-L]: https://www.stackage.org/lts/package/FailT
+
 ## Motivation
 
 When we have a function that can fail in a `MonadFail`, there is no instance in `base`

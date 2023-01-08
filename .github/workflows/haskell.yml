@@ -81,8 +81,6 @@ jobs:
         curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
         runhaskell -- git-modtime.hs -f .stack-work/tree-contents.txt
     - name: Build
-      env:
-        COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       run: |
         set -ex
         [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
