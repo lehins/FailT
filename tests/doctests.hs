@@ -2,7 +2,7 @@
 
 module Main where
 
-#if __GLASGOW_HASKELL__ >= 802 && __GLASGOW_HASKELL__ < 810
+#if __GLASGOW_HASKELL__ >= 802 && __GLASGOW_HASKELL__ < 900
 
 import Test.DocTest (doctest)
 
