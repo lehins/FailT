@@ -75,15 +75,17 @@ jobs:
         key: ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
         restore-keys: |
           ${{ runner.os }}-${{ matrix.resolver }}-programs-${{ env.cache-version }}
+    - name: Reset modtime
+      run: |
+        set -ex
+        curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
+        runhaskell -- git-modtime.hs -f .stack-work/tree-contents.txt
     - name: Build
       env:
         COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       run: |
         set -ex
         [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
-        curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
-        # Windows is confused about stack's default user directory
-        runhaskell -- git-modtime.hs -f .stack-work/tree-contents.txt
         if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-14" ] && [ -n "${COVERALLS_TOKEN}" ]; then
           stack $STACK_ARGS build --coverage --test --no-run-tests --haddock --no-haddock-deps
         else
@@ -163,6 +165,11 @@ jobs:
         key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
         restore-keys: |
           cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ env.cache-version }}
+    - name: Reset modtime
+      run: |
+        set -ex
+        curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
+        runhaskell -- git-modtime.hs -f dist-newstyle/tree-contents.txt
     - name: Build
       run: |
         set -ex
