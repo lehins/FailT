@@ -1,0 +1,5 @@
+resolver: lts-20.5
+packages:
+- .
+system-ghc: true
+extra-deps: []
