@@ -4,11 +4,11 @@ synopsis:            A 'FailT' monad transformer that plays well with 'MonadFail
 description:
     Fail gracefully when stuck in a 'MonadFail'
     .
-    λ> runFailT (fail "Failure!?" >> pure "Success!!")
+    >>> runFailT (fail "Failure!?" >> pure "Success!!")
     Left "Failure!?"
-    λ> runFailT (fail "Failure!?" <|> pure "Success!!")
+    >>> runFailT (fail "Failure!?" <|> pure "Success!!")
     Right "Success!!"
-    λ> runFailT (pure ["Success!!"] <> fail "Failure!?" <> pure ["At", "Last!"])
+    >>> runFailT (pure ["Success!!"] <> fail "Failure!?" <> pure ["At", "Last!"])
     Right ["Success!!","At","Last!"]
     .
 
@@ -40,7 +40,7 @@ library
                     , Control.Monad.Trans.Fail.String
                     , Control.Monad.Trans.Fail.Text
 
-  build-depends:      base >= 4.8 && < 5
+  build-depends:      base >= 4.9 && < 5
                     , exceptions
                     , mtl
                     , text
