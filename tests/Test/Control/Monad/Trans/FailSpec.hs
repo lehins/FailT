@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -22,6 +23,14 @@ laws Laws{lawsTypeclass, lawsProperties} =
 instance (Applicative m, Arbitrary e, Arbitrary a) => Arbitrary (FailT e m a) where
   arbitrary = FailT . pure <$> arbitrary
 
+instance (Arbitrary e, Arbitrary1 m, Applicative m) => Arbitrary1 (FailT e m) where
+  liftArbitrary gen =
+    oneof
+      [ FailT . pure . Left <$> arbitrary
+      , FailT . pure . Right <$> gen
+      ]
+  {-# INLINE liftArbitrary #-}
+
 spec :: Spec
 spec = do
   describe "FailT" $ do
@@ -29,20 +38,22 @@ spec = do
     describe "Instance Laws" $ do
       let px = Proxy :: Proxy (FailT String Maybe (Sum Int))
       let px1 = Proxy :: Proxy (FailT String Maybe)
-      laws $ eqLaws px
-      laws $ ordLaws px
-      laws $ showLaws px
-      laws $ showReadLaws px
-      laws $ monoidLaws px
-      laws $ semigroupLaws px
-      laws $ semigroupMonoidLaws px
-      laws $ alternativeLaws px1
-      laws $ applicativeLaws px1
-      laws $ foldableLaws px1
-      laws $ functorLaws px1
-      laws $ monadLaws px1
-      laws $ monadZipLaws px1
-      laws $ traversableLaws px1
+      mapM_ laws $
+        [ eqLaws px
+        , ordLaws px
+        , showLaws px
+        , showReadLaws px
+        , monoidLaws px
+        , semigroupLaws px
+        , alternativeLaws px1
+        , applicativeLaws px1
+        , foldableLaws px1
+        , functorLaws px1
+        , monadLaws px1
+        , monadZipLaws px1
+        , traversableLaws px1
+        ]
+          ++ extraLaws px
     describe "mtl" $ do
       prop "MonadReader" $ \msg (x :: Int) -> do
         let t :: FailT String (ReaderT Int IO) Int
@@ -60,3 +71,10 @@ spec = do
               modify' succ
         execStateT (runFailT t) x `shouldReturn` (x + 2)
         runStateT (runFailT (fail msg >> modify' succ)) x `shouldReturn` (Left msg, x)
+
+extraLaws :: (Semigroup a, Monoid a, Eq a, Arbitrary a, Show a) => Proxy a -> [Laws]
+#if MIN_VERSION_quickcheck_classes(0,6,2)
+extraLaws px = [semigroupMonoidLaws px]
+#else
+extraLaws _px = []
+#endif

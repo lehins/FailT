@@ -2,7 +2,7 @@
 
 module Main where
 
-import Spec (spec)
+import Test.Control.Monad.Trans.FailSpec (spec)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, hSetEncoding, stdout, utf8)
 import Test.Hspec.Runner
 

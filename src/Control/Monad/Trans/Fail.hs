@@ -60,7 +60,7 @@ import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (intersperse)
 import qualified Data.List.NonEmpty as NE
-import Data.Semigroup
+import qualified Data.Semigroup as Semi
 import Data.Typeable
 import GHC.Exts
 import GHC.Stack
@@ -83,7 +83,7 @@ type Fail e = FailT e Identity
 -- Right ()
 --
 -- All errors accrued during the monadic computation will be combined using the
--- `Semigroup` instance and delimited by a comma:
+-- `Semi.Semigroup` instance and delimited by a comma:
 --
 -- >>> runFail (fail "One thing went wrong" <|> fail "Another thing went wrong") :: Either String ()
 -- Left "One thing went wrong, Another thing went wrong"
@@ -93,7 +93,7 @@ type Fail e = FailT e Identity
 --
 -- >>> runFail mempty :: Either String ()
 -- Left "No failure reason given"
-runFail :: (IsString e, Semigroup e) => Fail e a -> Either e a
+runFail :: (IsString e, Semi.Semigroup e) => Fail e a -> Either e a
 runFail = runIdentity . runFailT
 {-# INLINE runFail #-}
 
@@ -155,7 +155,7 @@ failT = FailT . pure . Left . pure
 -- >>> runFailT (failT "Could have failed" <|> liftIO (putStrLn "Nothing went wrong"))
 -- Nothing went wrong
 -- Right ()
-runFailT :: (IsString e, Semigroup e, Functor m) => FailT e m a -> m (Either e a)
+runFailT :: (IsString e, Semi.Semigroup e, Functor m) => FailT e m a -> m (Either e a)
 runFailT (FailT f) = either (Left . toFailureDelimited) Right <$> f
 {-# INLINE runFailT #-}
 
@@ -239,8 +239,8 @@ toFailureNonEmpty xs =
     Nothing -> "No failure reason given" NE.:| []
     Just ne -> ne
 
-toFailureDelimited :: (IsString e, Semigroup e) => [e] -> e
-toFailureDelimited = sconcat . NE.intersperse ", " . toFailureNonEmpty
+toFailureDelimited :: (IsString e, Semi.Semigroup e) => [e] -> e
+toFailureDelimited = Semi.sconcat . NE.intersperse ", " . toFailureNonEmpty
 
 -- | Use the `MonadThrow` instance to raise a `FailException` in the underlying monad.
 --
@@ -321,9 +321,9 @@ instance Monad m => Alternative (FailT e m) where
       Right x -> pure (Right x)
   {-# INLINEABLE (<|>) #-}
 
--- | Executes all monadic actions and combines all successful results using a `Semigroup`
+-- | Executes all monadic actions and combines all successful results using a `Semi.Semigroup`
 -- instance. Combines together all failures as well, until a successful operation.
-instance (Monad m, Semigroup a) => Semigroup (FailT e m a) where
+instance (Monad m, Semi.Semigroup a) => Semi.Semigroup (FailT e m a) where
   (<>) (FailT m) (FailT k) = FailT $ do
     mres <- m
     kres <- k
@@ -335,12 +335,15 @@ instance (Monad m, Semigroup a) => Semigroup (FailT e m a) where
       Right x ->
         case kres of
           Left _kerr -> pure $ Right x
-          Right y -> pure $ Right (x <> y)
+          Right y -> pure $ Right (x Semi.<> y)
   {-# INLINEABLE (<>) #-}
 
-instance (Monad m, Semigroup a) => Monoid (FailT e m a) where
+instance (Monad m, Semi.Semigroup a) => Monoid (FailT e m a) where
   mempty = empty
   {-# INLINE mempty #-}
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (Semi.<>)
+#endif
 
 instance (IsString e, MonadIO m) => MonadIO (FailT e m) where
   liftIO = lift . liftIO
