@@ -13,7 +13,7 @@ defaults: { run: { shell: bash } }
 jobs:
   test-with-stack:
     if: github.event.pull_request.head.repo.full_name != github.repository
-    name: Test with Stack
+    name: Stack
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -44,7 +44,7 @@ jobs:
       STACK_ARGS: '--resolver ${{ matrix.resolver }} --system-ghc'
       cache-version: v1 # bump up this version to invalidate currently stored cache
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - uses: haskell/actions/setup@v2
       id: setup-haskell-cabal
@@ -81,10 +81,12 @@ jobs:
         curl -sSL https://raw.githubusercontent.com/lehins/utils/master/haskell/git-modtime/git-modtime.hs -o git-modtime.hs
         runhaskell -- git-modtime.hs -f .stack-work/tree-contents.txt
     - name: Build
+      env:
+        COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       run: |
         set -ex
         [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
-        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-14" ] && [ -n "${COVERALLS_TOKEN}" ]; then
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-20" ] && [ -n "${COVERALLS_TOKEN}" ]; then
           stack $STACK_ARGS build --coverage --test --no-run-tests --haddock --no-haddock-deps
         else
           stack $STACK_ARGS build --test --no-run-tests --haddock --no-haddock-deps
@@ -101,7 +103,7 @@ jobs:
           curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.6.1/shc-linux-x64-9.2.5.tar.bz2 | tar xj shc
           ./shc --repo-token="$COVERALLS_TOKEN" --partial-coverage --fetch-coverage combined custom
         else
-          stack $STACK_ARGS test :tests
+          stack $STACK_ARGS test :tests --haddock --no-haddock-deps
         fi
     - name: Run doctests
       run: |
@@ -111,7 +113,7 @@ jobs:
 
   test-with-cabal:
     if: github.event.pull_request.head.repo.full_name != github.repository
-    name: Test with Cabal
+    name: Cabal
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -145,7 +147,7 @@ jobs:
     env:
       cache-version: v1 # bump up this version to invalidate currently stored cache
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - uses: haskell/actions/setup@v2
       id: setup-haskell-cabal

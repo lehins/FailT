@@ -1,6 +1,6 @@
 ## Description
 
-&lt;Please fill in the description of all the changes included in this Pull Request&gt;
+Please fill in the description of all the changes included in this Pull Request.
 
 ## Checklist
 
