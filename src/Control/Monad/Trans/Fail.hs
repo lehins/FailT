@@ -77,13 +77,11 @@ import Control.Monad.Accum
 import Control.Monad.Select
 #endif
 
-
 #if !(MIN_VERSION_base(4,13,0))
 #define IS_MONAD_STRING IsString e,
 #else
 #define IS_MONAD_STRING
 #endif
-
 
 -- | `FailT` transformer with `Identity` as the base monad.
 type Fail e = FailT e Identity
@@ -335,7 +333,7 @@ instance (IS_MONAD_STRING Monad m) => Alternative (FailT e m) where
         k >>= \case
           Left kerr -> pure $ Left $ merr ++ kerr
           Right result -> pure $ Right result
-      Right x -> pure (Right x)
+      Right result -> pure $ Right result
   {-# INLINEABLE (<|>) #-}
 
 -- | Executes all monadic actions and combines all successful results using a `Semi.Semigroup`
@@ -373,6 +371,12 @@ instance MonadTrans (FailT e) where
 instance (IS_MONAD_STRING MonadZip m) => MonadZip (FailT e m) where
   mzipWith f (FailT a) (FailT b) = FailT $ mzipWith (liftA2 f) a b
   {-# INLINE mzipWith #-}
+
+instance (IS_MONAD_STRING MonadFix m) => MonadFix (FailT e m) where
+  mfix f = FailT (mfix (runFailAggT . f . either explode id))
+    where
+      explode _errMsgs = error "mfix (FailT): inner computation returned Left value"
+  {-# INLINE mfix #-}
 
 #if MIN_VERSION_base(4,12,0)
 instance Contravariant f => Contravariant (FailT e f) where
