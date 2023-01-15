@@ -8,6 +8,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+#if MIN_VERSION_mtl(2,3,0)
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE StandaloneDeriving #-}
+#endif
 
 -- |
 -- Module      : Control.Monad.Trans.Fail
@@ -67,6 +71,10 @@ import GHC.Exts
 import GHC.Stack
 #if MIN_VERSION_base(4,12,0)
 import Data.Functor.Contravariant
+#endif
+#if MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Accum
+import Control.Monad.Select
 #endif
 
 
@@ -490,3 +498,19 @@ liftPass p = mapFailT $ \m -> p $ do
     Left errs -> (Left errs, id)
     Right (v, f) -> (Right v, f)
 {-# INLINE liftPass #-}
+
+#if MIN_VERSION_mtl(2,3,0)
+-- | @since 0.1.1
+deriving via
+  (LiftingAccum (FailT e) m)
+  instance
+    (MonadAccum w m) =>
+    MonadAccum w (FailT e m)
+
+-- | @since 0.1.1
+deriving via
+  (LiftingSelect (FailT e) m)
+  instance
+    (MonadSelect r m) =>
+    MonadSelect r (FailT e m)
+#endif

@@ -4,6 +4,7 @@
 
 * Remove unnecessary `IsString` constraint from instance definitions for GHC >= 8.10
 * Add `MonadRWS` instance.
+* Add `MonadAccum` and `MonadSelect` instances, whenever mtl-2.3 or newer is used.
 
 ## 0.1.0.0
 
