@@ -317,7 +317,7 @@ instance Monad m => Alternative (FailT e m) where
       Left merr ->
         k >>= \case
           Left kerr -> pure $ Left $ merr ++ kerr
-          Right result -> pure $ Right $ result
+          Right result -> pure $ Right result
       Right x -> pure (Right x)
   {-# INLINEABLE (<|>) #-}
 
@@ -443,7 +443,7 @@ liftCallCC
   -> ((a -> FailT e m b) -> FailT e m a)
   -> FailT e m a
 liftCallCC ccc f = FailT $ ccc $ \c ->
-  runFailAggT (f (\a -> FailT $ c (Right a)))
+  runFailAggT (f (FailT . c . Right))
 {-# INLINE liftCallCC #-}
 
 -- | Lift a @`catchE`@ operation to the new monad.
