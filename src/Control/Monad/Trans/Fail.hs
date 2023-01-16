@@ -294,7 +294,7 @@ instance (IS_MONAD_STRING Monad m) => Applicative (FailT e m) where
             Left kerr -> pure $ Left kerr
             Right a -> pure $ Right (f a)
   {-# INLINE (<*>) #-}
-  FailT m *> FailT k = FailT $ m *> k
+  m *> k = m >>= \_ -> k
   {-# INLINE (*>) #-}
 
 -- | Short-circuites on the first failing operation.
