@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -41,6 +42,7 @@ module Control.Monad.Trans.Fail (
   mapErrorFailT,
   mapErrorsFailT,
   exceptFailT,
+  throwErrorFailT,
   throwFailT,
 
   -- * Helpers
@@ -228,6 +230,28 @@ exceptFailT m =
               , failCallStack = ?callStack
               }
 {-# INLINE exceptFailT #-}
+
+-- | Same as `exceptFailT`, but works with any `MonadError`.
+--
+-- >>> throwErrorFailT (fail "A bad thing" >> pure () :: FailT String (Except FailException) ())
+-- ExceptT (Identity (Left FailException
+-- "A bad thing"
+-- CallStack (from HasCallStack):
+-- ...
+throwErrorFailT
+  :: (HasCallStack, Typeable e, Show e, MonadError FailException m)
+  => FailT e m a
+  -> m a
+throwErrorFailT m =
+  runFailAggT m >>= \case
+    Right x -> pure x
+    Left errMsgs ->
+      throwError $
+        FailException
+          { failMessages = errMsgs
+          , failCallStack = ?callStack
+          }
+{-# INLINE throwErrorFailT #-}
 
 -- | An exception that is produced by the `FailT` monad transformer.
 data FailException where

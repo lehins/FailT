@@ -9,6 +9,7 @@
 * Add `MonadThrow` instance.
 * Fix a bug in `Applicative` instance. Implementation for `*>` did not short circuit
   mondic computation.
+* Add `throwErrorFailT` that uses `MonadError` interface.
 
 ## 0.1.0.0
 
