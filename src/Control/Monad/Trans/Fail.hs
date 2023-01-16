@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -8,6 +9,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+#if MIN_VERSION_mtl(2,3,0)
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE StandaloneDeriving #-}
+#endif
 
 -- |
 -- Module      : Control.Monad.Trans.Fail
@@ -37,6 +42,7 @@ module Control.Monad.Trans.Fail (
   mapErrorFailT,
   mapErrorsFailT,
   exceptFailT,
+  throwErrorFailT,
   throwFailT,
 
   -- * Helpers
@@ -51,6 +57,7 @@ import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Cont
 import Control.Monad.Except
 import qualified Control.Monad.Fail as F
+import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -66,6 +73,16 @@ import GHC.Exts
 import GHC.Stack
 #if MIN_VERSION_base(4,12,0)
 import Data.Functor.Contravariant
+#endif
+#if MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Accum
+import Control.Monad.Select
+#endif
+
+#if !(MIN_VERSION_base(4,13,0))
+#define IS_MONAD_STRING IsString e,
+#else
+#define IS_MONAD_STRING
 #endif
 
 -- | `FailT` transformer with `Identity` as the base monad.
@@ -214,6 +231,28 @@ exceptFailT m =
               }
 {-# INLINE exceptFailT #-}
 
+-- | Same as `exceptFailT`, but works with any `MonadError`.
+--
+-- >>> throwErrorFailT (fail "A bad thing" >> pure () :: FailT String (Except FailException) ())
+-- ExceptT (Identity (Left FailException
+-- "A bad thing"
+-- CallStack (from HasCallStack):
+-- ...
+throwErrorFailT
+  :: (HasCallStack, Typeable e, Show e, MonadError FailException m)
+  => FailT e m a
+  -> m a
+throwErrorFailT m =
+  runFailAggT m >>= \case
+    Right x -> pure x
+    Left errMsgs ->
+      throwError $
+        FailException
+          { failMessages = errMsgs
+          , failCallStack = ?callStack
+          }
+{-# INLINE throwErrorFailT #-}
+
 -- | An exception that is produced by the `FailT` monad transformer.
 data FailException where
   FailException
@@ -266,7 +305,7 @@ instance Functor m => Functor (FailT e m) where
   fmap f (FailT m) = FailT (fmap (fmap f) m)
   {-# INLINE fmap #-}
 
-instance Monad m => Applicative (FailT e m) where
+instance (IS_MONAD_STRING Monad m) => Applicative (FailT e m) where
   pure = FailT . pure . Right
   {-# INLINE pure #-}
 
@@ -279,11 +318,11 @@ instance Monad m => Applicative (FailT e m) where
             Left kerr -> pure $ Left kerr
             Right a -> pure $ Right (f a)
   {-# INLINE (<*>) #-}
-  FailT m *> FailT k = FailT $ m *> k
+  m *> k = m >>= \_ -> k
   {-# INLINE (*>) #-}
 
 -- | Short-circuites on the first failing operation.
-instance (IsString e, Monad m) => Monad (FailT e m) where
+instance (IS_MONAD_STRING Monad m) => Monad (FailT e m) where
   FailT m >>= k =
     FailT $
       m >>= \case
@@ -309,7 +348,7 @@ instance Traversable f => Traversable (FailT e f) where
   {-# INLINE traverse #-}
 
 -- | Short-circuits on the first successful operation, combines failures otherwise.
-instance Monad m => Alternative (FailT e m) where
+instance (IS_MONAD_STRING Monad m) => Alternative (FailT e m) where
   empty = FailT $ pure (Left [])
   {-# INLINE empty #-}
   FailT m <|> FailT k = FailT $ do
@@ -318,12 +357,12 @@ instance Monad m => Alternative (FailT e m) where
         k >>= \case
           Left kerr -> pure $ Left $ merr ++ kerr
           Right result -> pure $ Right result
-      Right x -> pure (Right x)
+      Right result -> pure $ Right result
   {-# INLINEABLE (<|>) #-}
 
 -- | Executes all monadic actions and combines all successful results using a `Semi.Semigroup`
 -- instance. Combines together all failures as well, until a successful operation.
-instance (Monad m, Semi.Semigroup a) => Semi.Semigroup (FailT e m a) where
+instance (IS_MONAD_STRING Monad m, Semi.Semigroup a) => Semi.Semigroup (FailT e m a) where
   (<>) (FailT m) (FailT k) = FailT $ do
     mres <- m
     kres <- k
@@ -338,14 +377,14 @@ instance (Monad m, Semi.Semigroup a) => Semi.Semigroup (FailT e m a) where
           Right y -> pure $ Right (x Semi.<> y)
   {-# INLINEABLE (<>) #-}
 
-instance (Monad m, Semi.Semigroup a) => Monoid (FailT e m a) where
+instance (IS_MONAD_STRING Monad m, Semi.Semigroup a) => Monoid (FailT e m a) where
   mempty = empty
   {-# INLINE mempty #-}
 #if !(MIN_VERSION_base(4,11,0))
   mappend = (Semi.<>)
 #endif
 
-instance (IsString e, MonadIO m) => MonadIO (FailT e m) where
+instance (IS_MONAD_STRING MonadIO m) => MonadIO (FailT e m) where
   liftIO = lift . liftIO
   {-# INLINE liftIO #-}
 
@@ -353,9 +392,15 @@ instance MonadTrans (FailT e) where
   lift = FailT . fmap Right
   {-# INLINE lift #-}
 
-instance (IsString e, MonadZip m) => MonadZip (FailT e m) where
+instance (IS_MONAD_STRING MonadZip m) => MonadZip (FailT e m) where
   mzipWith f (FailT a) (FailT b) = FailT $ mzipWith (liftA2 f) a b
   {-# INLINE mzipWith #-}
+
+instance (IS_MONAD_STRING MonadFix m) => MonadFix (FailT e m) where
+  mfix f = FailT (mfix (runFailAggT . f . either explode id))
+    where
+      explode _errMsgs = error "mfix (FailT): inner computation returned Left value"
+  {-# INLINE mfix #-}
 
 #if MIN_VERSION_base(4,12,0)
 instance Contravariant f => Contravariant (FailT e f) where
@@ -401,7 +446,11 @@ instance (Read e, Read1 m, Read a) => Read (FailT e m a) where
 instance (Show e, Show1 m, Show a) => Show (FailT e m a) where
   showsPrec = showsPrec1
 
-instance (IsString e, MonadReader r m) => MonadReader r (FailT e m) where
+instance (IS_MONAD_STRING MonadThrow m) => MonadThrow (FailT e m) where
+  throwM = lift . throwM
+  {-# INLINE throwM #-}
+
+instance (IS_MONAD_STRING MonadReader r m) => MonadReader r (FailT e m) where
   ask = lift ask
   {-# INLINE ask #-}
   local = mapFailT . local
@@ -409,7 +458,7 @@ instance (IsString e, MonadReader r m) => MonadReader r (FailT e m) where
   reader = lift . reader
   {-# INLINE reader #-}
 
-instance (IsString e, MonadState s m) => MonadState s (FailT e m) where
+instance (IS_MONAD_STRING MonadState s m) => MonadState s (FailT e m) where
   get = lift get
   {-# INLINE get #-}
   put = lift . put
@@ -417,13 +466,13 @@ instance (IsString e, MonadState s m) => MonadState s (FailT e m) where
   state = lift . state
   {-# INLINE state #-}
 
-instance (IsString e, MonadError e m) => MonadError e (FailT e m) where
+instance (IS_MONAD_STRING MonadError e m) => MonadError e (FailT e m) where
   throwError = lift . throwError
   {-# INLINE throwError #-}
   catchError = liftCatch catchError
   {-# INLINE catchError #-}
 
-instance (IsString e, MonadWriter w m) => MonadWriter w (FailT e m) where
+instance (IS_MONAD_STRING MonadWriter w m) => MonadWriter w (FailT e m) where
   writer = lift . writer
   {-# INLINE writer #-}
   tell = lift . tell
@@ -433,7 +482,10 @@ instance (IsString e, MonadWriter w m) => MonadWriter w (FailT e m) where
   pass = liftPass pass
   {-# INLINE pass #-}
 
-instance (IsString e, MonadCont m) => MonadCont (FailT e m) where
+-- | @since 0.1.1
+instance (IS_MONAD_STRING MonadRWS r w s m) => MonadRWS r w s (FailT e m)
+
+instance (IS_MONAD_STRING MonadCont m) => MonadCont (FailT e m) where
   callCC = liftCallCC callCC
   {-# INLINE callCC #-}
 
@@ -478,3 +530,19 @@ liftPass p = mapFailT $ \m -> p $ do
     Left errs -> (Left errs, id)
     Right (v, f) -> (Right v, f)
 {-# INLINE liftPass #-}
+
+#if MIN_VERSION_mtl(2,3,0)
+-- | @since 0.1.1
+deriving via
+  (LiftingAccum (FailT e) m)
+  instance
+    (MonadAccum w m) =>
+    MonadAccum w (FailT e m)
+
+-- | @since 0.1.1
+deriving via
+  (LiftingSelect (FailT e) m)
+  instance
+    (MonadSelect r m) =>
+    MonadSelect r (FailT e m)
+#endif

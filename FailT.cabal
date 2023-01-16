@@ -1,5 +1,5 @@
 name:                FailT
-version:             0.1.0.1
+version:             0.1.1.0
 synopsis:            A 'FailT' monad transformer that plays well with 'MonadFail'
 description:
     Fail gracefully when stuck in a 'MonadFail'

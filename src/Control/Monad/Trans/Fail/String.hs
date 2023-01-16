@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
 -- |
@@ -30,6 +31,7 @@ module Control.Monad.Trans.Fail.String (
   mapErrorFailT,
   mapErrorsFailT,
   exceptFailT,
+  throwErrorFailT,
   throwFailT,
 ) where
 
@@ -138,6 +140,20 @@ mapErrorsFailT = F.mapErrorsFailT
 exceptFailT :: (HasCallStack, Monad m) => FailT m a -> ExceptT F.FailException m a
 exceptFailT = F.exceptFailT
 {-# INLINE exceptFailT #-}
+
+-- | Version of `F.throwErrorFailT` restricted to `String`
+--
+-- Same as `exceptFailT`, but works with any `MonadError`.
+--
+-- >>> import Control.Monad.Trans.Fail.String
+-- >>> throwErrorFailT (fail "A bad thing" >> pure () :: FailT (Except FailException) ())
+-- ExceptT (Identity (Left FailException
+-- "A bad thing"
+-- CallStack (from HasCallStack):
+-- ...
+throwErrorFailT :: (HasCallStack, MonadError F.FailException m) => FailT m a -> m a
+throwErrorFailT = F.throwErrorFailT
+{-# INLINE throwErrorFailT #-}
 
 -- | Version of `F.throwFailT` restricted to `String`
 throwFailT :: (HasCallStack, MonadThrow m) => FailT m a -> m a
