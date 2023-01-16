@@ -6,6 +6,7 @@
 * Add `MonadFix` instance.
 * Add `MonadRWS` instance.
 * Add `MonadAccum` and `MonadSelect` instances, whenever mtl-2.3 or newer is used.
+* Add `MonadThrow` instance.
 
 ## 0.1.0.0
 

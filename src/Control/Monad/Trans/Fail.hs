@@ -422,6 +422,10 @@ instance (Read e, Read1 m, Read a) => Read (FailT e m a) where
 instance (Show e, Show1 m, Show a) => Show (FailT e m a) where
   showsPrec = showsPrec1
 
+instance (IS_MONAD_STRING MonadThrow m) => MonadThrow (FailT e m) where
+  throwM = lift . throwM
+  {-# INLINE throwM #-}
+
 instance (IS_MONAD_STRING MonadReader r m) => MonadReader r (FailT e m) where
   ask = lift ask
   {-# INLINE ask #-}
