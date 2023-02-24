@@ -56,6 +56,9 @@ import Control.Exception
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Cont
 import Control.Monad.Except
+#if MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Fix
+#endif
 import qualified Control.Monad.Fail as F
 import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.Reader
