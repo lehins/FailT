@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:FailT"
+
+    - path: "tests"
+      component: "FailT:test:doctests"
+
+    - path: "tests"
+      component: "FailT:test:tests"
