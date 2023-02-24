@@ -1,5 +1,5 @@
 name:                FailT
-version:             0.1.1.1
+version:             0.1.2.0
 synopsis:            A 'FailT' monad transformer that plays well with 'MonadFail'
 description:
     Fail gracefully when stuck in a 'MonadFail'
@@ -13,7 +13,7 @@ description:
     .
 
 
-homepage:            https://github.com/lehins/FailT
+homepage:             https://github.com/lehins/FailT
 license:              BSD3
 license-file:         LICENSE
 author:               Alexey Kuleshevich

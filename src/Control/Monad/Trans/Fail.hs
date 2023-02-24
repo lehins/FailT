@@ -34,6 +34,7 @@ module Control.Monad.Trans.Fail (
   FailT (..),
   FailException (..),
   failT,
+  failManyT,
   runFailT,
   runFailLastT,
   runFailAggT,
@@ -165,6 +166,16 @@ newtype FailT e m a = FailT (m (Either [e] a))
 -- | Similar to `fail`, but it is not restricted to `String`.
 failT :: Applicative m => e -> FailT e m a
 failT = FailT . pure . Left . pure
+{-# INLINE failT #-}
+
+-- | Similar to `failT`, but accepts a list of failures.
+--
+-- prop> runFailAgg (foldMap failT (xs :: [String])) == runFailAgg (failManyT xs)
+--
+-- @since 0.1.2
+failManyT :: Applicative m => [e] -> FailT e m a
+failManyT = FailT . pure . Left
+{-# INLINE failManyT #-}
 
 -- | Similar to `runFail`, except underlying monad is not restricted to `Identity`.
 --

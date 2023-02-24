@@ -8,7 +8,7 @@ message(s).
 |:--------------:|:---------:|:-------:|:-------:|:---:|
 | [![GA-CI][GA-B]][GA-L] | [![Coveralls][Co-B]][Co-L] | [![Hackage][Ha-B]][Ha-L] | [![Nightly][StN-B]][StN-L] | [![LTS][StLTS-B]][StLTS-L] |
 
-[GA-B]: https://github.com/lehins/FailT/workflows/FailT-CI/badge.svg
+[GA-B]: https://github.com/lehins/FailT/workflows/FailT-CI/badge.svg?branch=master
 [GA-L]: https://github.com/lehins/FailT/actions
 [Co-B]: https://coveralls.io/repos/github/lehins/FailT/badge.svg?branch=master
 [Co-L]: https://coveralls.io/github/lehins/FailT?branch=master

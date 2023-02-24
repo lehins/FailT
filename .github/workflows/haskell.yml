@@ -33,9 +33,9 @@ jobs:
             ghc: 8.10.7
           - resolver: lts-19
             ghc: 9.0.2
+            stack-yaml: stack-coveralls.yaml
           - resolver: lts-20
             ghc: 9.2.5
-            stack-yaml: stack-coveralls.yaml
           - resolver: nightly
             # ghc: 9.4.3
 
@@ -86,7 +86,7 @@ jobs:
       run: |
         set -ex
         [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
-        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-20" ] && [ -n "${COVERALLS_TOKEN}" ]; then
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-19" ] && [ -n "${COVERALLS_TOKEN}" ]; then
           stack $STACK_ARGS build --coverage --test --no-run-tests --haddock --no-haddock-deps
         else
           stack $STACK_ARGS build --test --no-run-tests --haddock --no-haddock-deps
@@ -97,10 +97,10 @@ jobs:
       run: |
         set -ex
         [ -n "${{ matrix.stack-yaml }}" ] && STACK_YAML=${{ matrix.stack-yaml }}
-        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-20" ] && [ -n "${COVERALLS_TOKEN}" ]; then
+        if [ "${{ matrix.os }}.${{ matrix.resolver }}" == "ubuntu-latest.lts-19" ] && [ -n "${COVERALLS_TOKEN}" ]; then
           stack $STACK_ARGS test :tests --coverage --haddock --no-haddock-deps
           stack $STACK_ARGS hpc report --all
-          curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.6.1/shc-linux-x64-9.2.5.tar.bz2 | tar xj shc
+          curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.7.0/shc-Linux-X64.tar.bz2 | tar xj shc
           ./shc --repo-token="$COVERALLS_TOKEN" --partial-coverage --fetch-coverage combined custom
         else
           stack $STACK_ARGS test :tests --haddock --no-haddock-deps
