@@ -23,6 +23,7 @@ module Control.Monad.Trans.Fail.String (
   FailT,
   F.FailException (..),
   failT,
+  failManyT,
   runFailT,
   runFailLastT,
   runFailAggT,
@@ -88,6 +89,15 @@ type FailT = F.FailT String
 failT :: Applicative m => String -> FailT m a
 failT = F.failT
 {-# INLINE failT #-}
+
+-- | Version of `F.failManyT` restricted to `String`
+--
+-- prop> runFailAgg (foldMap failT xs) == runFailAgg (failManyT xs)
+--
+-- @since 0.1.2
+failManyT :: Applicative m => [String] -> FailT m a
+failManyT = F.failManyT
+{-# INLINE failManyT #-}
 
 -- | Version of `F.runFailT` restricted to `String`
 runFailT :: Functor m => FailT m a -> m (Either String a)

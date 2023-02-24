@@ -1,8 +1,9 @@
 # Changelog for `FailT`
 
-## 0.1.1.1
+## 0.1.2.0
 
 * Compatiblity with mtl-2.3
+* Add `failManyT`
 
 ## 0.1.1.0
 

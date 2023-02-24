@@ -23,6 +23,7 @@ module Control.Monad.Trans.Fail.Text (
   FailT,
   F.FailException (..),
   failT,
+  failManyT,
   runFailT,
   runFailLastT,
   runFailAggT,
@@ -89,6 +90,13 @@ type FailT = F.FailT Text
 failT :: Applicative m => Text -> FailT m a
 failT = F.failT
 {-# INLINE failT #-}
+
+-- | Version of `F.failManyT` restricted to `Text`
+--
+-- @since 0.1.2
+failManyT :: Applicative m => [Text] -> FailT m a
+failManyT = F.failManyT
+{-# INLINE failManyT #-}
 
 -- | Version of `F.runFailT` restricted to `Text`
 runFailT :: Functor m => FailT m a -> m (Either Text a)
